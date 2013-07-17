@@ -4,8 +4,9 @@
 <html>
 <head>
 <script src="jpgui.js"></script>
-<script src="loris.js"></script>
 <script>
+
+  var loader = new ImageLoader();
 
   function getCanvas() {
     return document.getElementById('c1');
@@ -19,18 +20,19 @@
     return ctx.getImageData(0,0,width,height);
   }
 
-function main() {
-  Loris.eval('importScripts("jpg.js", "jpgworker.js")', function() {});
-  Loris.evalAsync('getJpgData("http://lorempixel.com/1024/1024/nature/1/", 1024, 1024, callback);', function(rv) {
-    var imageData = getImageData(rv.width, rv.height);
-    new CopyImageDataTask(rv.data, rv.numComponents, imageData, function() {
-      var start = Date.now();
-      getCanvas().getContext('2d').putImageData(imageData, 0, 0);
+  function main() {
+    loader.loadImage(
+        'http://localhost:8989/bigimage.jpeg',
+        1024,
+        1024,
+        function(data, numComponents, width, height) {
+      var imageData = getImageData(width, height);
+      new CopyImageDataTask(data, numComponents, imageData, function() {
+        var start = Date.now();
+        getCanvas().getContext('2d').putImageData(imageData, 0, 0);
+      });
     });
-  }, function(error) {
-    console.error('errback', error);
-  });
-}
+  }
 </script>
 </head>
 <body onload="main()">

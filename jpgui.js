@@ -1,8 +1,22 @@
+// vendor prefix requestAnimationFrame
+window.requestAnimationFrame =
+  window.requestAnimationFrame ||
+  window.webkitRequestAnimationFrame ||
+  window.mozRequestAnimationFrame;
+
+if (!window.requestAnimationFrame) {
+  throw new Error('sorry, you need a browser with requestAnimationFrame');
+}
+
+if (!window.Worker) {
+  throw new Error('sorry, you need a browser with web workers');
+}
+
 function clampTo8bit(a) {
   return a < 0 ? 0 : a > 255 ? 255 : a;
 }
 
-var TIMEOUT = 10;
+var TIMEOUT = 15;
 
 function CopyImageDataTask(srcJpegData, numComponents, destImageData, finish) {
   this.data = srcJpegData;
@@ -16,7 +30,8 @@ function CopyImageDataTask(srcJpegData, numComponents, destImageData, finish) {
   this.y = 0;
   this.callback = CALLBACKS[numComponents];
   this.finish = finish;
-  this.beginIterate();
+  this.runIteration = this.beginIterate.bind(this);
+  requestAnimationFrame(this.runIteration);
 };
 
 CopyImageDataTask.prototype.beginIterate = function() {
@@ -30,14 +45,14 @@ CopyImageDataTask.prototype.iterate = function(startTime) {
       this.y++;
     }
     if (this.y >= this.height) {
-      this.finish();
+      requestAnimationFrame(this.finish);
       break;
     }
     this.callback();
     this.x++;
 
     if (Date.now() - startTime > TIMEOUT) {
-      requestAnimationFrame(this.beginIterate.bind(this));
+      requestAnimationFrame(this.runIteration);
       break;
     }
   }
@@ -77,4 +92,51 @@ var CALLBACKS = {
     this.imageDataArray[this.j++] = B;
     this.imageDataArray[this.j++] = 255;
   }
+};
+
+function ImageLoader() {
+  this.images = {};
+  this.nextDataImageID = null;
+  this.ids = 0;
+  this.worker = new Worker('./jpgworker.js');
+  this.worker.onmessage = this.handleMessage.bind(this);
+  this.worker.onerror = function(event) {
+    console.error('jpgworker error:', event);
+  };
+}
+
+ImageLoader.prototype.handleMessage = function(event) {
+  var imageMetadata;
+  if (event.data.metadata) {
+    this.nextDataImageID = event.data.id;
+    imageMetadata = this.images[this.nextDataImageID];
+    imageMetadata.numComponents = event.data.numComponents;
+    imageMetadata.width = event.data.width;
+    imageMetadata.height = event.data.height;
+  } else {
+    imageMetadata = this.images[this.nextDataImageID];
+    this.images[this.nextDataImageID] = null;
+    imageMetadata.cb(
+      new Uint8Array(event.data),
+      imageMetadata.numComponents,
+      imageMetadata.width,
+      imageMetadata.height
+    );
+  }
+};
+
+ImageLoader.prototype.loadImage = function(url, width, height, cb) {
+  var id = 'img' + (this.ids++);
+  this.images[id] = {
+    numComponents: -1,
+    width: -1,
+    height: -1,
+    cb: cb
+  };
+  this.worker.postMessage({
+    id: id,
+    url: url,
+    width: width,
+    height: height
+  });
 };
