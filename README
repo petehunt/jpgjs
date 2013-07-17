@@ -1,3 +1,5 @@
-Simple JPEG/DCT data decoder in JavaScript.
+Based on the excellent jpgjs hack: http://github.com/notmasteryet/jpgjs/
 
-Example URL: http://notmasteryet.github.com/jpgjs/example.html
+The problem: JPG decoding is really slow on mobile (especially Retina iPad) and you have no insight into the process (if it's done etc). You also have to resort to hacks to get the display to not be terrible. With this hack the image is drawn instantly once it's ready and you know exactly when it will be visible.
+
+I do this by doing the decoding using a webworker (with transferrable objects so there is no big copy) and then progressively draw to a canvas each frame (ensuring that we never take more than 16ms).
